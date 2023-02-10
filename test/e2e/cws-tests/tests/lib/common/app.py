@@ -12,14 +12,13 @@ class App:
     def query_metric(self, name, **kw):
         api_instance = MetricsApi(self.v1_api_client)
 
-        tags = []
-        for key, value in kw.items():
-            tags.append(f"{key}:{value}")
-        if len(tags) == 0:
+        tags = [f"{key}:{value}" for key, value in kw.items()]
+        if not tags:
             tags.append("*")
 
-        response = api_instance.query_metrics(int(time.time()) - 30, int(time.time()), f"{name}{{{','.join(tags)}}}")
-        return response
+        return api_instance.query_metrics(
+            int(time.time()) - 30, int(time.time()), f"{name}{{{','.join(tags)}}}"
+        )
 
     def wait_for_metric(self, name, tries=30, delay=10, **kw):
         def expect_metric():

@@ -160,10 +160,7 @@ def _is_affirmative(s):
     if s is None:
         return False
     # int or real bool
-    if isinstance(s, int):
-        return bool(s)
-    # try string cast
-    return s.lower() in ('yes', 'true', '1')
+    return bool(s) if isinstance(s, int) else s.lower() in ('yes', 'true', '1')
 
 
 def get_config_path(cfg_path=""):
@@ -217,7 +214,7 @@ def get_histogram_percentiles(configstr=None):
                     raise ValueError
                 if len(val) > 4:
                     log.warning(f"Histogram percentiles are rounded to 2 digits: {floatval} rounded")
-                result.append(float(val[0:4]))
+                result.append(float(val[:4]))
             except ValueError:
                 log.warning(f"Bad histogram percentile value {val}, must be float in ]0;1[, skipping")
     except Exception:
@@ -230,7 +227,7 @@ def get_histogram_percentiles(configstr=None):
 def clean_dd_url(url):
     url = url.strip()
     if not url.startswith('http'):
-        url = 'https://' + url
+        url = f'https://{url}'
     return url[:-1] if url.endswith('/') else url
 
 
@@ -352,7 +349,7 @@ def get_config(options=None):
         if config.has_option('Main', 'service_discovery_backend'):
             try:
                 additional_config = extract_agent_config(config)
-                agentConfig.update(additional_config)
+                agentConfig |= additional_config
             except Exception:
                 log.error('Failed to load the agent configuration related to service discovery. It will not be used.')
 
@@ -389,9 +386,10 @@ def get_config(options=None):
             )
 
         # Disable Watchdog (optionally)
-        if config.has_option('Main', 'watchdog'):
-            if config.get('Main', 'watchdog').lower() in ('no', 'false'):
-                agentConfig['watchdog'] = False
+        if config.has_option('Main', 'watchdog') and config.get(
+            'Main', 'watchdog'
+        ).lower() in ('no', 'false'):
+            agentConfig['watchdog'] = False
 
         # Optional graphite listener
         if config.has_option('Main', 'graphite_listen_port'):
@@ -520,12 +518,8 @@ def get_config(options=None):
 
 
 def extract_agent_config(config):
-    # get merged into the real agentConfig
-    agentConfig = {}
-
     backend = config.get('Main', 'service_discovery_backend')
-    agentConfig['service_discovery'] = True
-
+    agentConfig = {'service_discovery': True}
     conf_backend = None
     if config.has_option('Main', 'sd_config_backend'):
         conf_backend = config.get('Main', 'sd_config_backend')
@@ -542,17 +536,17 @@ def extract_agent_config(config):
     agentConfig['sd_config_backend'] = conf_backend
 
     additional_config = extract_sd_config(config)
-    agentConfig.update(additional_config)
+    agentConfig |= additional_config
     return agentConfig
 
 
 def extract_sd_config(config):
     """Extract configuration about service discovery for the agent"""
-    sd_config = {}
-    if config.has_option('Main', 'sd_config_backend'):
-        sd_config['sd_config_backend'] = config.get('Main', 'sd_config_backend')
-    else:
-        sd_config['sd_config_backend'] = None
+    sd_config = {
+        'sd_config_backend': config.get('Main', 'sd_config_backend')
+        if config.has_option('Main', 'sd_config_backend')
+        else None
+    }
     if config.has_option('Main', 'sd_template_dir'):
         sd_config['sd_template_dir'] = config.get('Main', 'sd_template_dir')
     else:
@@ -609,9 +603,7 @@ def get_proxy(agentConfig):
 
 
 def main():
-    res = {}
-    for k, v in get_config().items():
-        res[k] = str(v)
+    res = {k: str(v) for k, v in get_config().items()}
     return json.dumps(res, sort_keys=True)
 
 

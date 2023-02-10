@@ -178,7 +178,7 @@ class NinjaWriter(object):
                 # Give up on breaking.
                 break
 
-            self.output.write(leading_space + text[0:space] + ' $\n')
+            self.output.write(leading_space + text[:space] + ' $\n')
             text = text[space + 1 :]
 
             # Subsequent lines are continuations, so indent them.
@@ -193,9 +193,7 @@ class NinjaWriter(object):
 def as_list(input):
     if input is None:
         return []
-    if isinstance(input, list):
-        return input
-    return [input]
+    return input if isinstance(input, list) else [input]
 
 
 # def escape(string):

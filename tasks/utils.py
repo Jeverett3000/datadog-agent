@@ -47,17 +47,14 @@ def bin_name(name, android=False):
     if android:
         return f"{name}.aar"
 
-    if sys.platform == 'win32':
-        return f"{name}.exe"
-    return name
+    return f"{name}.exe" if sys.platform == 'win32' else name
 
 
 def get_gopath(ctx):
-    gopath = os.environ.get("GOPATH")
-    if not gopath:
-        gopath = ctx.run("go env GOPATH", hide=True).stdout.strip()
-
-    return gopath
+    return (
+        os.environ.get("GOPATH")
+        or ctx.run("go env GOPATH", hide=True).stdout.strip()
+    )
 
 
 def get_rtloader_paths(embedded_path=None, rtloader_root=None):
@@ -69,10 +66,13 @@ def get_rtloader_paths(embedded_path=None, rtloader_root=None):
         if not base_path:
             continue
 
-        for libdir in ["lib", "lib64", "build/rtloader"]:
-            if os.path.exists(os.path.join(base_path, libdir, RTLOADER_LIB_NAME)):
-                rtloader_lib.append(os.path.join(embedded_path, libdir))
-
+        rtloader_lib.extend(
+            os.path.join(embedded_path, libdir)
+            for libdir in ["lib", "lib64", "build/rtloader"]
+            if os.path.exists(
+                os.path.join(base_path, libdir, RTLOADER_LIB_NAME)
+            )
+        )
         header_path = os.path.join(base_path, "include")
         if not rtloader_headers and os.path.exists(os.path.join(header_path, RTLOADER_HEADER_NAME)):
             rtloader_headers = header_path
@@ -118,9 +118,13 @@ def get_nikos_linker_flags(nikos_libs_path):
         'zstd',
     ]
     # hardcode the path to each library to ensure we link against the version which was built by omnibus-nikos
-    linker_flags = map(lambda lib: nikos_libs_path + '/lib' + lib + '.a', nikos_libs)
+    linker_flags = map(lambda lib: f'{nikos_libs_path}/lib{lib}.a', nikos_libs)
 
-    return ' -L' + nikos_libs_path + ' ' + ' '.join(linker_flags) + ' -static-libstdc++ -pthread -ldl -lm'
+    return (
+        f' -L{nikos_libs_path} '
+        + ' '.join(linker_flags)
+        + ' -static-libstdc++ -pthread -ldl -lm'
+    )
 
 
 def has_both_python(python_runtimes):
@@ -211,7 +215,9 @@ def get_build_flags(
     # adding nikos libs to the env
     if nikos_embedded_path:
         env['PKG_CONFIG_PATH'] = env.get('PKG_CONFIG_PATH', '') + ':' + nikos_embedded_path + '/lib/pkgconfig'
-        env["CGO_LDFLAGS"] = env.get('CGO_LDFLAGS', '') + get_nikos_linker_flags(nikos_embedded_path + '/lib')
+        env["CGO_LDFLAGS"] = env.get(
+            'CGO_LDFLAGS', ''
+        ) + get_nikos_linker_flags(f'{nikos_embedded_path}/lib')
 
     # if `static` was passed ignore setting rpath, even if `embedded_path` was passed as well
     if static:
@@ -326,26 +332,25 @@ def query_version(ctx, git_sha_length=7, prefix=None, major_version_hint=None):
     cmd = "git describe --tags --candidates=50"
     if prefix and type(prefix) == str:
         cmd += f" --match \"{prefix}-*\""
+    elif major_version_hint:
+        cmd += f' --match "{major_version_hint}\.*"'
     else:
-        if major_version_hint:
-            cmd += r' --match "{}\.*"'.format(major_version_hint)  # noqa: FS002
-        else:
-            cmd += " --match \"[0-9]*\""
+        cmd += " --match \"[0-9]*\""
     if git_sha_length and type(git_sha_length) == int:
         cmd += f" --abbrev={git_sha_length}"
     described_version = ctx.run(cmd, hide=True).stdout.strip()
 
-    # for the example above, 6.0.0-beta.0-1-g4f19118, this will be 1
-    commit_number_match = re.match(r"^.*-(?P<commit_number>\d+)-g[0-9a-f]+$", described_version)
-    commit_number = 0
-    if commit_number_match:
-        commit_number = int(commit_number_match.group('commit_number'))
-
+    if commit_number_match := re.match(
+        r"^.*-(?P<commit_number>\d+)-g[0-9a-f]+$", described_version
+    ):
+        commit_number = int(commit_number_match['commit_number'])
+    else:
+        commit_number = 0
     version_re = r"v?(?P<version>\d+\.\d+\.\d+)(?:(?:-|\.)(?P<pre>[0-9A-Za-z.-]+))?"
     if prefix and type(prefix) == str:
-        version_re = r"^(?:{}-)?".format(prefix) + version_re  # noqa: FS002
+        version_re = f"^(?:{prefix}-)?{version_re}"
     else:
-        version_re = r"^" + version_re
+        version_re = f"^{version_re}"
     if commit_number == 0:
         version_re += r"(?P<git_sha>)$"
     else:
@@ -392,9 +397,9 @@ def get_version(
 
     if not commits_since_version and is_nightly and include_git:
         if url_safe:
-            version = f"{version}.git.{0}.{git_sha}"
+            version = f"{version}.git.0.{git_sha}"
         else:
-            version = f"{version}+git.{0}.{git_sha}"
+            version = f"{version}+git.0.{git_sha}"
 
     if commits_since_version and include_git:
         if url_safe:

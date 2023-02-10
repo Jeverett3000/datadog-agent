@@ -11,7 +11,11 @@ FILE_IGNORE_LIST = [
 
 # Exclude non go files
 # Get the package for each file
-targets = {"./" + os.path.dirname(path) for path in sys.argv[1:] if path.endswith(".go")}
+targets = {
+    f"./{os.path.dirname(path)}"
+    for path in sys.argv[1:]
+    if path.endswith(".go")
+}
 
 # Call invoke command
 # We do this workaround since we can't do relative imports

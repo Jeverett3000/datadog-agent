@@ -95,9 +95,7 @@ def genconfig(
         osimages = load_targets(ctx, ar, osversions, platform)
 
         print(f"Chose os targets {osimages}\n")
-        for osimage in osimages:
-            testplatformslist.append(f"{osimage},{ar[osimage]}")
-
+        testplatformslist.extend(f"{osimage},{ar[osimage]}" for osimage in osimages)
     elif platlist:
         # platform list should be in the form of driver,os,arch,image
         for entry in platlist:
@@ -146,12 +144,10 @@ def genconfig(
                 print(f"Adding file {f}\n")
                 kitchenyml.write(infile.read())
 
-    env = {}
-    if uservars:
-        env = load_user_env(ctx, provider, uservars)
+    env = load_user_env(ctx, provider, uservars) if uservars else {}
     env['TEST_PLATFORMS'] = testplatforms
 
-    env['TEST_IMAGE_SIZE'] = imagesize if imagesize else ""
+    env['TEST_IMAGE_SIZE'] = imagesize or ""
 
     if fips:
         env['FIPS'] = 'true'
@@ -167,7 +163,7 @@ def should_rerun_failed(_, runlog):
     with open(runlog, 'r', encoding='utf-8') as f:
         text = f.read()
         result = set(test_result_re.findall(text))
-        if result == {'0'} or result == set():
+        if result in [{'0'}, set()]:
             print("Seeing no failed tests in log, advising to rerun")
         else:
             raise Exit("Seeing some failed tests in log, not advising to rerun", 1)
@@ -178,11 +174,12 @@ def load_targets(_, targethash, selections, platform):
     skiplist = []
     commentpattern = re.compile("^comment")
 
-    if platform == "windows":
-        if 'WINDOWS_DDNPM_DRIVER' in os.environ.keys() and os.environ['WINDOWS_DDNPM_DRIVER'] == 'testsigned':
-            for skip in WINDOWS_SKIP_IF_TESTSIGNING:
-                skiplist.append(re.compile(skip))
-
+    if (
+        platform == "windows"
+        and 'WINDOWS_DDNPM_DRIVER' in os.environ.keys()
+        and os.environ['WINDOWS_DDNPM_DRIVER'] == 'testsigned'
+    ):
+        skiplist.extend(re.compile(skip) for skip in WINDOWS_SKIP_IF_TESTSIGNING)
     for selection in selections.split(","):
         selectionpattern = re.compile(f"^{selection}$")
 

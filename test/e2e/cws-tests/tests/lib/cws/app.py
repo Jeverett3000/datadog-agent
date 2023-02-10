@@ -108,7 +108,9 @@ class App(common.App):
             name=name,
             message=msg,
             options=SecurityMonitoringRuleOptions(
-                detection_method=SecurityMonitoringRuleDetectionMethod("threshold"),
+                detection_method=SecurityMonitoringRuleDetectionMethod(
+                    "threshold"
+                ),
                 evaluation_window=SecurityMonitoringRuleEvaluationWindow(0),
                 keep_alive=SecurityMonitoringRuleKeepAlive(0),
                 max_signal_duration=SecurityMonitoringRuleMaxSignalDuration(0),
@@ -116,9 +118,9 @@ class App(common.App):
             queries=[
                 SecurityMonitoringRuleQueryCreate(
                     aggregation=SecurityMonitoringRuleQueryAggregation("count"),
-                    query="@agent.rule_id:" + agent_rule_id,
+                    query=f"@agent.rule_id:{agent_rule_id}",
                     name="a",
-                ),
+                )
             ],
             tags=tags,
             type=SecurityMonitoringRuleTypeCreate("workload_security"),

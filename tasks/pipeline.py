@@ -57,8 +57,6 @@ def check_deploy_pipeline(gitlab, git_ref, release_version_6, release_version_7,
     # v7 version pattern should be able to match 7.12.24-rc2 and 7.12.34
     #
     v7_pattern = r'^7\.(\d+\.\d+)(-.+|)$'
-    v6_pattern = r'^6\.(\d+\.\d+)(-.+|)$'
-
     match = re.match(v7_pattern, git_ref)
 
     if release_version_6 and match:
@@ -72,6 +70,8 @@ def check_deploy_pipeline(gitlab, git_ref, release_version_6, release_version_7,
 
         print(f"Successfully cross checked v6 tag {tag_name} and git ref {git_ref}")
     else:
+        v6_pattern = r'^6\.(\d+\.\d+)(-.+|)$'
+
         match = re.match(v6_pattern, git_ref)
 
         if release_version_7 and match:
@@ -241,9 +241,7 @@ def run(
             )
             kitchen_tests = True
 
-    pipelines = get_running_pipelines_on_same_ref(gitlab, git_ref)
-
-    if pipelines:
+    if pipelines := get_running_pipelines_on_same_ref(gitlab, git_ref):
         print(
             f"There are already {len(pipelines)} pipeline(s) running on the target git ref.",
             "For each of them, you'll be asked whether you want to cancel them or not.",
@@ -362,14 +360,7 @@ def generate_failure_messages(base):
                     messages_to_send[all_teams].add_test_failure(test, job)
                     for owner in test.owners:
                         messages_to_send[owner].add_test_failure(test, job)
-        elif owner == "@DataDog/do-not-notify":
-            # Jobs owned by @DataDog/do-not-notify do not send team messages
-            pass
-        elif owner == all_teams:
-            # Jobs owned by @DataDog/agent-all will already be in the global
-            # message, do not overwrite the failed jobs list
-            pass
-        else:
+        elif owner not in ["@DataDog/do-not-notify", all_teams]:
             messages_to_send[owner].failed_jobs = jobs
 
     return messages_to_send

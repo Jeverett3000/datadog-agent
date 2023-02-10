@@ -116,8 +116,6 @@ def ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release):
     debugdef = "-DDEBUG=1" if debug else ""
     security_flags = f"-I{security_agent_c_dir} {debugdef}"
 
-    outfiles = []
-
     # basic
     infile = os.path.join(security_agent_prebuilt_dir, "probe.c")
     outfile = os.path.join(build_dir, "runtime-security.o")
@@ -126,12 +124,11 @@ def ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release):
         infile=infile,
         outfile=outfile,
         variables={
-            "flags": security_flags + " -DUSE_SYSCALL_WRAPPER=0",
+            "flags": f"{security_flags} -DUSE_SYSCALL_WRAPPER=0",
             "kheaders": kheaders,
         },
     )
-    outfiles.append(outfile)
-
+    outfiles = [outfile]
     # syscall wrapper
     root, ext = os.path.splitext(outfile)
     syscall_wrapper_outfile = f"{root}-syscall-wrapper{ext}"
@@ -140,7 +137,7 @@ def ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release):
         infile=infile,
         outfile=syscall_wrapper_outfile,
         variables={
-            "flags": security_flags + " -DUSE_SYSCALL_WRAPPER=1",
+            "flags": f"{security_flags} -DUSE_SYSCALL_WRAPPER=1",
             "kheaders": kheaders,
         },
     )
@@ -165,7 +162,9 @@ def ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release):
 def ninja_network_ebpf_program(nw, infile, outfile, flags):
     ninja_ebpf_program(nw, infile, outfile, {"flags": flags})
     root, ext = os.path.splitext(outfile)
-    ninja_ebpf_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"})
+    ninja_ebpf_program(
+        nw, infile, f"{root}-debug{ext}", {"flags": f"{flags} -DDEBUG=1"}
+    )
 
 
 def ninja_network_ebpf_programs(nw, build_dir):
@@ -384,9 +383,10 @@ def build_sysprobe_binary(
     if nikos_embedded_path:
         build_tags.append(DNF_TAG)
 
-    cmd = 'go build -mod={go_mod}{race_opt}{build_type} -tags "{go_build_tags}" '
-    cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/system-probe'
-
+    cmd = (
+        'go build -mod={go_mod}{race_opt}{build_type} -tags "{go_build_tags}" '
+        + '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/system-probe'
+    )
     args = {
         "go_mod": go_mod,
         "race_opt": " -race" if race else "",
@@ -460,7 +460,7 @@ def test(
 
     cmd = 'go test -mod=mod -v {failfast} -tags "{build_tags}" {output_params} {pkgs} {run}'
     if not windows and not output_path and not is_root():
-        cmd = 'sudo -E ' + cmd
+        cmd = f'sudo -E {cmd}'
 
     ctx.run(cmd.format(**args), env=env)
 
@@ -552,7 +552,7 @@ def kitchen_test(ctx, target=None, provider="virtualbox"):
                 for image in by_provider["vagrant"][vagrant_arch]:
                     images[image] = kplatform
 
-    if not (target in images):
+    if target not in images:
         print(
             f"please run inv -e system-probe.kitchen-test --target <IMAGE>, where <IMAGE> is one of the following:\n{list(images.keys())}"
         )
@@ -624,9 +624,9 @@ def clang_format(ctx, targets=None, fix=False, fail_on_issue=False):
 
     fmt_cmd = "clang-format -i --style=file --fallback-style=none"
     if not fix:
-        fmt_cmd = fmt_cmd + " --dry-run"
+        fmt_cmd += " --dry-run"
     if fail_on_issue:
-        fmt_cmd = fmt_cmd + " --Werror"
+        fmt_cmd += " --Werror"
 
     ctx.run(f"{fmt_cmd} {' '.join(targets)}")
 
@@ -661,8 +661,7 @@ def clang_tidy(ctx, fix=False, fail_on_issue=False, kernel_release=None):
     security_files = list(base_files)
     security_files.extend(glob.glob(f"{security_agent_c_dir}/**/*.c"))
     security_flags = list(build_flags)
-    security_flags.append(f"-I{security_agent_c_dir}")
-    security_flags.append("-DUSE_SYSCALL_WRAPPER=0")
+    security_flags.extend((f"-I{security_agent_c_dir}", "-DUSE_SYSCALL_WRAPPER=0"))
     security_checks = ["-readability-function-cognitive-complexity"]
     run_tidy(
         ctx,
@@ -733,21 +732,15 @@ def get_linux_header_dirs(kernel_release=None, minimal_kernel_release=None):
         f"{src_dir}/linux-headers-{kernel_release}",
         f"{src_kernels_dir}/{kernel_release}",
     ]
-    linux_headers = []
-    for d in possible_dirs:
-        if os.path.isdir(d):
-            # resolve symlinks
-            linux_headers.append(Path(d).resolve())
-
-    # fallback to non-release-specific directories
-    if len(linux_headers) == 0:
+    linux_headers = [Path(d).resolve() for d in possible_dirs if os.path.isdir(d)]
+    if not linux_headers:
         if os.path.isdir(src_kernels_dir):
             linux_headers = [os.path.join(src_kernels_dir, d) for d in os.listdir(src_kernels_dir)]
         else:
             linux_headers = [os.path.join(src_dir, d) for d in os.listdir(src_dir) if d.startswith("linux-")]
 
     # fallback to /usr as a last report
-    if len(linux_headers) == 0:
+    if not linux_headers:
         linux_headers = ["/usr"]
 
     # deduplicate
@@ -772,40 +765,27 @@ def get_linux_header_dirs(kernel_release=None, minimal_kernel_release=None):
 
 
 def get_ebpf_build_flags():
-    flags = []
-    flags.extend(
-        [
-            '-D__KERNEL__',
-            '-DCONFIG_64BIT',
-            '-D__BPF_TRACING__',
-            '-DKBUILD_MODNAME=\\"ddsysprobe\\"',
-        ]
-    )
-    flags.extend(
-        [
-            '-Wno-unused-value',
-            '-Wno-pointer-sign',
-            '-Wno-compare-distinct-pointer-types',
-            '-Wunused',
-            '-Wall',
-            '-Werror',
-        ]
-    )
-    flags.extend(["-include pkg/ebpf/c/asm_goto_workaround.h"])
-    flags.extend(["-O2"])
-    flags.extend(
-        [
-            # Some linux distributions enable stack protector by default which is not available on eBPF
-            '-fno-stack-protector',
-            '-fno-color-diagnostics',
-            '-fno-unwind-tables',
-            '-fno-asynchronous-unwind-tables',
-            '-fno-jump-tables',
-            '-fmerge-all-constants',
-        ]
-    )
-    flags.extend(["-Ipkg/ebpf/c"])
-    return flags
+    return [
+        '-D__KERNEL__',
+        '-DCONFIG_64BIT',
+        '-D__BPF_TRACING__',
+        '-DKBUILD_MODNAME=\\"ddsysprobe\\"',
+        '-Wno-unused-value',
+        '-Wno-pointer-sign',
+        '-Wno-compare-distinct-pointer-types',
+        '-Wunused',
+        '-Wall',
+        '-Werror',
+        "-include pkg/ebpf/c/asm_goto_workaround.h",
+        "-O2",
+        '-fno-stack-protector',
+        '-fno-color-diagnostics',
+        '-fno-unwind-tables',
+        '-fno-asynchronous-unwind-tables',
+        '-fno-jump-tables',
+        '-fmerge-all-constants',
+        "-Ipkg/ebpf/c",
+    ]
 
 
 def get_kernel_headers_flags(kernel_release=None, minimal_kernel_release=None):

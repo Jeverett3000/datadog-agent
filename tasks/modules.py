@@ -13,7 +13,7 @@ class GoModule:
 
     def __init__(self, path, targets=None, condition=lambda: True, should_tag=True, independent=False):
         self.path = path
-        self.targets = targets if targets else ["."]
+        self.targets = targets or ["."]
         self.condition = condition
         self.should_tag = should_tag
         self.independent = independent
@@ -26,10 +26,7 @@ class GoModule:
         >>> [mod.__version("7.27.0") for mod in mods]
         ["v7.27.0", "v0.27.0"]
         """
-        if self.path == ".":
-            return "v" + agent_version
-
-        return "v0" + agent_version[1:]
+        return f"v{agent_version}" if self.path == "." else f"v0{agent_version[1:]}"
 
     def __compute_dependencies(self):
         """
@@ -62,7 +59,7 @@ class GoModule:
         [["6.27.0", "7.27.0"], ["pkg/util/log/v0.27.0"]]
         """
         if self.path == ".":
-            return ["6" + agent_version[1:], "7" + agent_version[1:]]
+            return [f"6{agent_version[1:]}", f"7{agent_version[1:]}"]
 
         return [f"{self.path}/{self.__version(agent_version)}"]
 
@@ -72,7 +69,7 @@ class GoModule:
 
     def go_mod_path(self):
         """Return the absolute path of the Go module go.mod file."""
-        return self.full_path() + "/go.mod"
+        return f"{self.full_path()}/go.mod"
 
     @property
     def dependencies(self):
@@ -89,7 +86,7 @@ class GoModule:
         """
         path = "github.com/DataDog/datadog-agent"
         if self.path != ".":
-            path += "/" + self.path
+            path += f"/{self.path}"
         return path
 
     def dependency_path(self, agent_version):
@@ -142,11 +139,11 @@ def generate_dummy_package(ctx, folder):
     Allows us to wrap this function with a "with" statement to delete the created dummy pacakage afterwards.
     """
     try:
-        import_paths = []
-        for mod in DEFAULT_MODULES.values():
-            if mod.path != "." and mod.condition():
-                import_paths.append(mod.import_path)
-
+        import_paths = [
+            mod.import_path
+            for mod in DEFAULT_MODULES.values()
+            if mod.path != "." and mod.condition()
+        ]
         os.mkdir(folder)
         with ctx.cd(folder):
             print("Creating dummy 'main.go' file... ", end="")
@@ -165,7 +162,6 @@ def generate_dummy_package(ctx, folder):
         # yield folder waiting for a "with" block to be executed (https://docs.python.org/3/library/contextlib.html)
         yield folder
 
-    # the generator is then resumed here after the "with" block is exited
     finally:
         # delete test_folder to avoid FileExistsError while running this task again
         ctx.run(f"rm -rf ./{folder}")

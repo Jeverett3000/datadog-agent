@@ -163,15 +163,11 @@ def update_changelog_generic(ctx, new_version, changelog_dir, changelog_file):
 
     # mac's `sed` has a different syntax for the "-i" paramter
     # GNU sed has a `--version` parameter while BSD sed does not, using that to do proper detection.
-    if ctx.run("sed --version", hide='both'):
-        sed_i_arg = "-i"
-    else:
-        sed_i_arg = "-i ''"
+    sed_i_arg = "-i" if ctx.run("sed --version", hide='both') else "-i ''"
     # check whether there is a v6 tag on the same v7 tag, if so add the v6 tag to the release title
     v6_tag = ""
     if new_version_int[0] == 7:
-        v6_tag = _find_v6_tag(ctx, new_version)
-        if v6_tag:
+        if v6_tag := _find_v6_tag(ctx, new_version):
             ctx.run(f"sed {sed_i_arg} -E 's#^{new_version}#{new_version} / {v6_tag}#' /tmp/new_changelog.rst")
     # remove the old header from the existing changelog
     ctx.run(f"sed {sed_i_arg} -e '1,4d' {changelog_file}")
@@ -223,10 +219,7 @@ def update_installscript_changelog(ctx, new_version):
     # reseting git
     ctx.run("git reset --hard HEAD")
 
-    # mac's `sed` has a different syntax for the "-i" paramter
-    sed_i_arg = "-i"
-    if sys.platform == 'darwin':
-        sed_i_arg = "-i ''"
+    sed_i_arg = "-i ''" if sys.platform == 'darwin' else "-i"
     # remove the old header from the existing changelog
     ctx.run(f"sed {sed_i_arg} -e '1,4d' CHANGELOG-INSTALLSCRIPT.rst")
 
@@ -323,15 +316,14 @@ def _save_release_json(release_json):
 
 def _create_version_from_match(match):
     groups = match.groups()
-    version = Version(
+    return Version(
         major=int(groups[1]),
         minor=int(groups[2]),
         patch=int(groups[4]) if groups[4] and groups[4] != 0 else None,
-        devel=True if groups[5] else False,
+        devel=bool(groups[5]),
         rc=int(groups[7]) if groups[7] and groups[7] != 0 else None,
-        prefix=groups[0] if groups[0] else "",
+        prefix=groups[0] or "",
     )
-    return version
 
 
 def _stringify_config(config_dict):
@@ -353,8 +345,7 @@ def _query_github_api(auth_token, url):
 
     # Basic auth doesn't seem to work with private repos, so we use token auth here
     headers = {"Authorization": f"token {auth_token}"}
-    response = requests.get(url, headers=headers)
-    return response
+    return requests.get(url, headers=headers)
 
 
 def build_compatible_version_re(allowed_major_versions, minor_version):
@@ -364,9 +355,7 @@ def build_compatible_version_re(allowed_major_versions, minor_version):
     the provided minor version.
     """
     return re.compile(
-        r'(v)?({})[.]({})([.](\d+))?(-devel)?(-rc\.(\d+))?'.format(  # noqa: FS002
-            "|".join(allowed_major_versions), minor_version
-        )
+        f'(v)?({"|".join(allowed_major_versions)})[.]({minor_version})([.](\d+))?(-devel)?(-rc\.(\d+))?'
     )
 
 
@@ -391,8 +380,7 @@ def _get_highest_repo_version(
         tags = _query_github_api(auth, url).json()
 
         for tag in tags:
-            match = version_re.search(tag["ref"])
-            if match:
+            if match := version_re.search(tag["ref"]):
                 this_version = _create_version_from_match(match)
                 if max_version:
                     # Get the max version that corresponds to the major version
@@ -427,16 +415,14 @@ def _get_release_version_from_release_json(release_json, major_version, version_
 
     # Get the release entry for the given Agent major version
     release_entry_name = release_entry_for(major_version)
-    release_json_entry = release_json.get(release_entry_name, None)
-
-    # Check that the release entry exists, otherwise fail
-    if release_json_entry:
+    if release_json_entry := release_json.get(release_entry_name, None):
         release_version = release_entry_name
 
         # Check that the component's version is defined in the release entry
         if release_json_key is not None:
-            match = version_re.match(release_json_entry.get(release_json_key, ""))
-            if match:
+            if match := version_re.match(
+                release_json_entry.get(release_json_key, "")
+            ):
                 release_component_version = _create_version_from_match(match)
             else:
                 print(
@@ -516,9 +502,16 @@ def _fetch_dependency_repo_version(
         max_version=max_agent_version,
     )
 
-    if check_for_rc and version.is_rc():
-        if not yes_no_question(RC_TAG_QUESTION_TEMPLATE.format(repo_name, version), "orange", False):
-            raise Exit("Aborting release.json update.", 1)
+    if (
+        check_for_rc
+        and version.is_rc()
+        and not yes_no_question(
+            RC_TAG_QUESTION_TEMPLATE.format(repo_name, version),
+            "orange",
+            False,
+        )
+    ):
+        raise Exit("Aborting release.json update.", 1)
 
     print(TAG_FOUND_TEMPLATE.format(repo_name, version))
     return version
@@ -786,8 +779,11 @@ def __get_force_option(force: bool) -> str:
     force_option = ""
     if force:
         print(color_message("--force option enabled. This will allow the task to overwrite existing tags.", "orange"))
-        result = yes_no_question("Please confirm the use of the --force option.", color="orange", default=False)
-        if result:
+        if result := yes_no_question(
+            "Please confirm the use of the --force option.",
+            color="orange",
+            default=False,
+        ):
             print("Continuing with the --force option.")
             force_option = " --force"
         else:
@@ -896,18 +892,13 @@ def next_rc_version(ctx, major_version, patch_version=False) -> Version:
     if previous_version.is_rc():
         # We're already on an RC, only bump the RC version
         new_version = previous_version.next_version(rc=True)
+    elif patch_version:
+        new_version = previous_version.next_version(bump_patch=True, rc=True)
+    elif previous_version.is_devel():
+        new_version = previous_version.non_devel_version()
+        new_version = new_version.next_version(rc=True)
     else:
-        if patch_version:
-            new_version = previous_version.next_version(bump_patch=True, rc=True)
-        else:
-            # Minor version bump, we're doing a standard release:
-            # - if the previous tag is a devel tag, use it without the devel tag
-            # - otherwise (should not happen during regular release cycles), bump the minor version
-            if previous_version.is_devel():
-                new_version = previous_version.non_devel_version()
-                new_version = new_version.next_version(rc=True)
-            else:
-                new_version = previous_version.next_version(bump_minor=True, rc=True)
+        new_version = previous_version.next_version(bump_minor=True, rc=True)
 
     return new_version
 
@@ -917,7 +908,7 @@ def check_base_branch(branch, release_version):
     Checks if the given branch is either the default branch or the release branch associated
     with the given release version.
     """
-    return branch == DEFAULT_BRANCH or branch == release_version.branch()
+    return branch in [DEFAULT_BRANCH, release_version.branch()]
 
 
 def check_uncommitted_changes(ctx):

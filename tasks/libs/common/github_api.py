@@ -71,10 +71,14 @@ class GithubAPI(RemoteAPI):
         """
         path = f"/repos/{self.repository}/milestones"
         res = self.make_request(path, method="GET", json_output=True)
-        for milestone in res:
-            if milestone["title"] == milestone_name:
-                return milestone
-        return None
+        return next(
+            (
+                milestone
+                for milestone in res
+                if milestone["title"] == milestone_name
+            ),
+            None,
+        )
 
     def make_request(self, path, headers=None, method="GET", data=None, json_output=False):
         """
@@ -104,14 +108,20 @@ def get_github_token():
         print("GITHUB_TOKEN not found in env. Trying keychain...")
         if platform.system() == "Darwin":
             try:
-                output = subprocess.check_output(
-                    ['security', 'find-generic-password', '-a', os.environ["USER"], '-s', 'GITHUB_TOKEN', '-w']
-                )
-                if output:
+                if output := subprocess.check_output(
+                    [
+                        'security',
+                        'find-generic-password',
+                        '-a',
+                        os.environ["USER"],
+                        '-s',
+                        'GITHUB_TOKEN',
+                        '-w',
+                    ]
+                ):
                     return output.strip()
             except subprocess.CalledProcessError:
                 print("GITHUB_TOKEN not found in keychain...")
-                pass
         raise Exit(
             message="Please create a 'repo' access token at "
             "https://github.com/settings/tokens and "

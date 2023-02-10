@@ -47,12 +47,8 @@ def split_junitxml(xml_path, codeowners, output_dir):
 
         # Dirs in CODEOWNERS might end with "/", but testsuite names in JUnit XML
         # don't, so for determining ownership we append "/" temporarily.
-        owners = codeowners.of(path + "/")
-        if not owners:
-            main_owner = "none"
-        else:
-            main_owner = owners[0][1][len(CODEOWNERS_ORG_PREFIX) :]
-
+        owners = codeowners.of(f"{path}/")
+        main_owner = owners[0][1][len(CODEOWNERS_ORG_PREFIX) :] if owners else "none"
         try:
             xml = output_xmls[main_owner]
         except KeyError:
@@ -61,7 +57,7 @@ def split_junitxml(xml_path, codeowners, output_dir):
         xml.getroot().append(suite)
 
     for owner, xml in output_xmls.items():
-        filepath = os.path.join(output_dir, owner + ".xml")
+        filepath = os.path.join(output_dir, f"{owner}.xml")
         xml.write(filepath, encoding="UTF-8", xml_declaration=True)
 
     return list(output_xmls), flavor
@@ -79,13 +75,13 @@ def upload_junitxmls(output_dir, owners, flavor, additional_tags=None, job_url="
             "--service",
             "datadog-agent",
             "--tags",
-            'test.codeowners:["' + CODEOWNERS_ORG_PREFIX + owner + '"]',
+            f'test.codeowners:["{CODEOWNERS_ORG_PREFIX}{owner}"]',
             "--tags",
             f"test.flavor:{flavor}",
         ]
         if additional_tags:
             args.extend(additional_tags)
-        args.append(os.path.join(output_dir, owner + ".xml"))
+        args.append(os.path.join(output_dir, f"{owner}.xml"))
         processes.append(subprocess.Popen(DATADOG_CI_COMMAND + args, bufsize=-1, env=process_env))
     for process in processes:
         exit_code = process.wait()

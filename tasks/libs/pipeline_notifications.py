@@ -66,10 +66,14 @@ def get_job_failure_reason(job_log):
         "Allocation failed. We do not have sufficient capacity for the requested VM size in this region.",
     ]
 
-    for log in infra_failure_logs:
-        if log in job_log:
-            return FailedJobReason.INFRA_FAILURE
-    return FailedJobReason.JOB_FAILURE
+    return next(
+        (
+            FailedJobReason.INFRA_FAILURE
+            for log in infra_failure_logs
+            if log in job_log
+        ),
+        FailedJobReason.JOB_FAILURE,
+    )
 
 
 def truncate_job_name(job_name, max_char_per_job=48):

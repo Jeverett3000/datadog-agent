@@ -51,7 +51,4 @@ class TestCase:
 
     def render(self, config):
         self.build(config)
-        markdown = ""
-        for step in self.steps:
-            markdown += step + "\n\n"
-        return markdown
+        return "".join(step + "\n\n" for step in self.steps)

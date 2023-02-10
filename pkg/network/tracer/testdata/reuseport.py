@@ -11,8 +11,7 @@ port = random.randrange(32768, 65535)
 print(port)
 count = range(2)
 for _x in count:
-    child = os.fork()
-    if child:
+    if child := os.fork():
         children.append(child)
     else:
         s = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM, proto=socket.IPPROTO_UDP)

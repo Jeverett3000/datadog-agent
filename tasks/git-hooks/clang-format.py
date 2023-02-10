@@ -49,11 +49,8 @@ def excludes_from_file(ignore_file):
                 if line.startswith('#'):
                     # ignore comments
                     continue
-                pattern = line.rstrip()
-                if not pattern:
-                    # allow empty lines
-                    continue
-                excludes.append(pattern)
+                if pattern := line.rstrip():
+                    excludes.append(pattern)
     except EnvironmentError as e:
         if e.errno != errno.ENOENT:
             raise
@@ -109,8 +106,7 @@ class UnexpectedError(Exception):
 
 def run_clang_format_diff_wrapper(args, file):
     try:
-        ret = run_clang_format_diff(args, file)
-        return ret
+        return run_clang_format_diff(args, file)
     except DiffError:
         raise
     except Exception as e:
@@ -181,9 +177,7 @@ def run_clang_format_diff(args, file):
             f"Command '{subprocess.list2cmdline(invocation)}' returned non-zero exit status {proc.returncode}",
             errs,
         )
-    if args.in_place:
-        return [], errs
-    return make_diff(file, original, outs), errs
+    return ([], errs) if args.in_place else (make_diff(file, original, outs), errs)
 
 
 def bold_red(s):
@@ -292,7 +286,7 @@ def main():
         colored_stdout = sys.stdout.isatty()
         colored_stderr = sys.stderr.isatty()
 
-    version_invocation = [args.clang_format_executable, str("--version")]
+    version_invocation = [args.clang_format_executable, "--version"]
     try:
         subprocess.check_call(version_invocation, stdout=DEVNULL)
     except subprocess.CalledProcessError as e:

@@ -313,7 +313,7 @@ class ContainerScenario(TestCase):
         self.dcuf = dcuf
 
         self.name = "Container Scenario: "
-        self.name += ('docker' if k8s == 'none' else 'k8s/' + k8s) + ', '
+        self.name += ('docker' if k8s == 'none' else f'k8s/{k8s}') + ', '
         self.name += f"config source={cfgsource}, "
         self.name += f"cca={cca}, "
         self.name += f"kcuf={kcuf}, "
