@@ -41,7 +41,7 @@ class GithubWorkflows(RemoteAPI):
         ref must be a branch or a tag.
         """
         if inputs is None:
-            inputs = dict()
+            inputs = {}
 
         path = f"/repos/{self.repository}/actions/workflows/{workflow_name}/dispatches"
         data = json.dumps({"ref": ref, "inputs": inputs})

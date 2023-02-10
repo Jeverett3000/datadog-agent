@@ -73,10 +73,16 @@ COPY test.bin /test.bin
     test_container = client.containers.run(
         test_image.id,
         detach=True,
-        pid_mode="host",  # For origin detection
-        environment=["SCRATCH_VOLUME_NAME=" + scratch_volume.name, "SCRATCH_VOLUME_PATH=/tmp/scratch"],
+        pid_mode="host",
+        environment=[
+            f"SCRATCH_VOLUME_NAME={scratch_volume.name}",
+            "SCRATCH_VOLUME_PATH=/tmp/scratch",
+        ],
         volumes={
-            '/var/run/docker.sock': {'bind': '/var/run/docker.sock', 'mode': 'ro'},
+            '/var/run/docker.sock': {
+                'bind': '/var/run/docker.sock',
+                'mode': 'ro',
+            },
             '/proc': {'bind': '/host/proc', 'mode': 'ro'},
             '/sys/fs/cgroup': {'bind': '/host/sys/fs/cgroup', 'mode': 'ro'},
             scratch_volume.name: {'bind': '/tmp/scratch', 'mode': 'rw'},

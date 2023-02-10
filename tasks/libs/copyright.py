@@ -97,11 +97,9 @@ class CopyrightLinter:
 
     @staticmethod
     def _is_excluded_path(filepath, exclude_matchers):
-        for matcher in exclude_matchers:
-            if re.search(matcher, filepath.as_posix()):
-                return True
-
-        return False
+        return any(
+            re.search(matcher, filepath.as_posix()) for matcher in exclude_matchers
+        )
 
     @staticmethod
     def _get_matching_files(root_dir, glob_pattern, exclude=None):
@@ -127,9 +125,7 @@ class CopyrightLinter:
         header = []
         with open(filepath, "r", encoding="utf-8") as file_obj:
             # We expect a specific header format which should be 4 lines
-            for _ in range(4):
-                header.append(file_obj.readline().strip())
-
+            header.extend(file_obj.readline().strip() for _ in range(4))
         return header
 
     @staticmethod
@@ -137,11 +133,7 @@ class CopyrightLinter:
         if exclude is None:
             exclude = []
 
-        for matcher in exclude:
-            if re.search(matcher, header[0]):
-                return True
-
-        return False
+        return any(re.search(matcher, header[0]) for matcher in exclude)
 
     def _has_copyright(self, filepath):
         header = CopyrightLinter._get_header(filepath)
@@ -223,10 +215,7 @@ class CopyrightLinter:
         if header[0].startswith("//") and not CopyrightLinter._is_build_header(header[0]):
             return False
 
-        if dry_run:
-            return True
-
-        return self._prepend_header(filepath, dry_run=dry_run)
+        return True if dry_run else self._prepend_header(filepath, dry_run=dry_run)
 
     def _fix(self, failing_files, dry_run=True):
         failing_files_cnt = len(failing_files)
@@ -270,9 +259,7 @@ class CopyrightLinter:
                     f"Copyright linting found {len(failing_files)} files that did not have the expected header!"
                 )
 
-            # If "fix=True", we will attempt to fix the failing files
-            errors = self._fix(failing_files, dry_run=dry_run)
-            if errors:
+            if errors := self._fix(failing_files, dry_run=dry_run):
                 raise LintFailure(f"Copyright linter was unable to fix {len(errors)}/{len(failing_files)} files!")
 
             return

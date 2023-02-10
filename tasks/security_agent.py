@@ -94,7 +94,7 @@ def build(
     main = "main."
     ld_vars = {
         "Version": get_version(ctx, major_version=major_version),
-        "GoVersion": go_version if go_version else get_go_version(),
+        "GoVersion": go_version or get_go_version(),
         "GitBranch": get_git_branch_name(),
         "GitCommit": get_git_commit(),
         "BuildDate": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
@@ -106,10 +106,10 @@ def build(
         build="security-agent"
     )  # TODO/FIXME: Arch not passed to preserve build tags. Should this be fixed?
 
-    # TODO static option
-    cmd = 'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
-    cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/security-agent'
-
+    cmd = (
+        'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
+        + '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/security-agent'
+    )
     args = {
         "go_mod": go_mod,
         "race_opt": "-race" if race else "",
@@ -362,9 +362,10 @@ def build_functional_tests(
         build_flags += " -race"
 
     build_tags = ",".join(build_tags)
-    cmd = 'go test -mod=mod -tags {build_tags} -ldflags="{ldflags}" -c -o {output} '
-    cmd += '{build_flags} {repo_path}/pkg/security/tests'
-
+    cmd = (
+        'go test -mod=mod -tags {build_tags} -ldflags="{ldflags}" -c -o {output} '
+        + '{build_flags} {repo_path}/pkg/security/tests'
+    )
     args = {
         "output": output,
         "ldflags": ldflags,
@@ -552,8 +553,10 @@ RUN ln -s $(which llc-11) /opt/datadog-agent/embedded/bin/llc-bpf
     container_name = 'security-agent-tests'
     capabilities = ['SYS_ADMIN', 'SYS_RESOURCE', 'SYS_PTRACE', 'NET_ADMIN', 'IPC_LOCK', 'ALL']
 
-    cmd = 'docker run --name {container_name} {caps} --privileged -d '
-    cmd += '-v /dev:/dev '
+    cmd = (
+        'docker run --name {container_name} {caps} --privileged -d '
+        + '-v /dev:/dev '
+    )
     cmd += '-v /proc:/host/proc -e HOST_PROC=/host/proc '
     cmd += '-v /etc:/host/etc -e HOST_ETC=/host/etc '
     cmd += '-v /sys:/host/sys -e HOST_SYS=/host/sys '
@@ -695,8 +698,7 @@ def go_generate_check(ctx):
         # we flush to ensure correct separation between steps
         sys.stdout.flush()
         sys.stderr.flush()
-        dirty_files = get_git_dirty_files()
-        if dirty_files:
+        if dirty_files := get_git_dirty_files():
             failing_tasks.append(FailingTask(task.__name__, dirty_files))
 
     if failing_tasks:

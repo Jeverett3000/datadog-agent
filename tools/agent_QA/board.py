@@ -37,7 +37,7 @@ def setup(version):
     if api_key and api_secret and org_id:
         # Setup trello
         client = TrelloClient(api_key=api_key, api_secret=api_secret)
-        board = client.add_board("[" + version + "] Logs Agent Release QA", None, org_id)
+        board = client.add_board(f"[{version}] Logs Agent Release QA", None, org_id)
 
         for list in board.all_lists():
             list.close()

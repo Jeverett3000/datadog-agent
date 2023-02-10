@@ -89,7 +89,7 @@ class DockerHelper(LogGetter):
         return self.agent_container
 
     def download_policies(self):
-        command = SEC_AGENT_PATH + " runtime policy download"
+        command = f"{SEC_AGENT_PATH} runtime policy download"
         site = os.environ["DD_SITE"]
         api_key = os.environ["DD_API_KEY"]
         app_key = os.environ["DD_APP_KEY"]
@@ -114,17 +114,17 @@ class DockerHelper(LogGetter):
         os.remove(temppolicy_path)
 
     def cp_file(self, src, dst):
-        tar = tarfile.open(src + '.tar', mode='w')
+        tar = tarfile.open(f'{src}.tar', mode='w')
         try:
             tar.add(src)
         finally:
             tar.close()
-        data = open(src + '.tar', 'rb').read()
+        data = open(f'{src}.tar', 'rb').read()
         self.agent_container.put_archive("/tmp", data)
-        self.agent_container.exec_run("mv /tmp/" + src + " " + dst)
+        self.agent_container.exec_run(f"mv /tmp/{src} {dst}")
 
     def reload_policies(self):
-        self.agent_container.exec_run(SEC_AGENT_PATH + " runtime policy reload")
+        self.agent_container.exec_run(f"{SEC_AGENT_PATH} runtime policy reload")
 
     def wait_agent_container(self, tries=10, delay=5):
         return retry_call(is_container_running, fargs=[self.agent_container], tries=tries, delay=delay)
@@ -140,8 +140,7 @@ class DockerHelper(LogGetter):
 
         log = self.agent_container.logs(since=1).decode("utf-8")
 
-        result = [line for line in log.splitlines() if log_prefix in line]
-        if result:
+        if result := [line for line in log.splitlines() if log_prefix in line]:
             return result
         raise LookupError(agent_name)
 

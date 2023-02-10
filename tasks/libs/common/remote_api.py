@@ -103,6 +103,4 @@ class RemoteAPI(object):
             return r.json()
         if raw_output:
             return r.content
-        if stream_output:
-            return r
-        return r.text
+        return r if stream_output else r.text

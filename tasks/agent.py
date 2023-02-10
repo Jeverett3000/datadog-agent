@@ -166,9 +166,10 @@ def build(
         build_exclude = [] if build_exclude is None else build_exclude.split(",")
         build_tags = get_build_tags(build_include, build_exclude)
 
-    cmd = "go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
-
-    cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/{flavor}"
+    cmd = (
+        "go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
+        + "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/{flavor}"
+    )
     args = {
         "go_mod": go_mod,
         "race_opt": "-race" if race else "",
@@ -232,7 +233,7 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
         shutil.copy("./cmd/agent/dist/system-probe.yaml", os.path.join(dist_folder, "system-probe.yaml"))
     shutil.copy("./cmd/agent/dist/datadog.yaml", os.path.join(dist_folder, "datadog.yaml"))
 
-    for check in AGENT_CORECHECKS if not flavor.is_iot() else IOT_AGENT_CORECHECKS:
+    for check in IOT_AGENT_CORECHECKS if flavor.is_iot() else AGENT_CORECHECKS:
         check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
         copy_tree(f"./cmd/agent/dist/conf.d/{check}.d/", check_dir)
     if "apm" in build_tags:
@@ -269,7 +270,7 @@ def run(
         build(ctx, rebuild, race, build_include, build_exclude, flavor)
 
     agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
-    config_path = os.path.join(BIN_PATH, "dist", "datadog.yaml") if not config_path else config_path
+    config_path = config_path or os.path.join(BIN_PATH, "dist", "datadog.yaml")
     ctx.run(f"{agent_bin} run -c {config_path}")
 
 
@@ -375,9 +376,9 @@ def get_omnibus_env(
     if go_mod_cache:
         env['OMNIBUS_GOMODCACHE'] = go_mod_cache
 
-    integrations_core_version = os.environ.get('INTEGRATIONS_CORE_VERSION')
-    # Only overrides the env var if the value is a non-empty string.
-    if integrations_core_version:
+    if integrations_core_version := os.environ.get(
+        'INTEGRATIONS_CORE_VERSION'
+    ):
         env['INTEGRATIONS_CORE_VERSION'] = integrations_core_version
 
     if sys.platform == 'win32' and os.environ.get('SIGN_WINDOWS'):
@@ -412,23 +413,16 @@ def get_omnibus_env(
 
 def omnibus_run_task(ctx, task, target_project, base_dir, env, omnibus_s3_cache=False, log_level="info"):
     with ctx.cd("omnibus"):
-        overrides_cmd = ""
-        if base_dir:
-            overrides_cmd = f"--override=base_dir:{base_dir}"
-
+        overrides_cmd = f"--override=base_dir:{base_dir}" if base_dir else ""
         omnibus = "bundle exec omnibus"
-        if sys.platform == 'win32':
-            omnibus = "bundle exec omnibus.bat"
-        elif sys.platform == 'darwin':
+        if sys.platform == 'darwin':
             # HACK: This is an ugly hack to fix another hack made by python3 on MacOS
             # The full explanation is available on this PR: https://github.com/DataDog/datadog-agent/pull/5010.
             omnibus = "unset __PYVENV_LAUNCHER__ && bundle exec omnibus"
 
-        if omnibus_s3_cache:
-            populate_s3_cache = "--populate-s3-cache"
-        else:
-            populate_s3_cache = ""
-
+        elif sys.platform == 'win32':
+            omnibus = "bundle exec omnibus.bat"
+        populate_s3_cache = "--populate-s3-cache" if omnibus_s3_cache else ""
         cmd = "{omnibus} {task} {project_name} --log-level={log_level} {populate_s3_cache} {overrides}"
         args = {
             "omnibus": omnibus,
@@ -653,13 +647,11 @@ def check_supports_python_version(_, check_dir, python):
             return
 
         specifier = SpecifierSet(project_metadata['requires-python'])
-        # It might be e.g. `>=3.8` which would not immediatelly contain `3`
         for minor_version in range(100):
             if specifier.contains(f'{python}.{minor_version}'):
                 print('True', end='')
                 return
-        else:
-            print('False', end='')
+        print('False', end='')
     elif os.path.isfile(setup_file):
         with open(setup_file, 'r') as f:
             tree = ast.parse(f.read(), filename=setup_file)
@@ -670,8 +662,7 @@ def check_supports_python_version(_, check_dir, python):
                 classifiers = ast.literal_eval(node.value)
                 print(any(cls.startswith(prefix) for cls in classifiers), end='')
                 return
-        else:
-            print('False', end='')
+        print('False', end='')
     else:
         raise Exit('not a Python project', code=1)
 
@@ -767,12 +758,7 @@ def get_integrations_from_cache(ctx, python, bucket, branch, integrations_dir, t
     )
     sync_commands = [[[sync_command_prefix], len(sync_command_prefix)]]
     for integration, hash in integrations_hashes.items():
-        include_arg = " --include " + CACHED_WHEEL_FULL_PATH_PATTERN.format(
-            hash=hash,
-            integration=integration,
-            python_version=python,
-            branch=branch,
-        )
+        include_arg = f" --include {CACHED_WHEEL_FULL_PATH_PATTERN.format(hash=hash, integration=integration, python_version=python, branch=branch)}"
         if len(include_arg) + sync_commands[-1][1] > 8100:
             sync_commands.append([[sync_command_prefix], len(sync_command_prefix)])
         sync_commands[-1][0].append(include_arg)

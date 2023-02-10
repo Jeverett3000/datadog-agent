@@ -96,11 +96,5 @@ class Version:
             new_version.minor = 0
             new_version.patch = 0
 
-        if rc:
-            # Bump the rc version
-            new_version.rc = new_version._safe_value("rc") + 1
-        else:
-            # Promote the current version to a non-rc version
-            new_version.rc = 0
-
+        new_version.rc = new_version._safe_value("rc") + 1 if rc else 0
         return new_version

@@ -65,8 +65,10 @@ def build(ctx, rebuild=False, race=False, major_version='7', python_runtimes='3'
     )
 
     ctx.run('go run golang.org/x/mobile/cmd/gomobile init', env=env)
-    cmd = "go run golang.org/x/mobile/cmd/gomobile bind -target android {race_opt} {build_type} -tags \"{go_build_tags}\" "
-    cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/agent/android"
+    cmd = (
+        "go run golang.org/x/mobile/cmd/gomobile bind -target android {race_opt} {build_type} -tags \"{go_build_tags}\" "
+        + "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/agent/android"
+    )
     args = {
         "race_opt": "-race" if race else "",
         "build_type": "-a" if rebuild else "",
@@ -137,7 +139,6 @@ def assetconfigs(_):
     # move the core check config
     shutil.rmtree(CORECHECK_CONFS_DIR, ignore_errors=True)
 
-    files = {}
     files_list = []
     os.makedirs(CORECHECK_CONFS_DIR)
     for check in ANDROID_CORECHECKS:
@@ -145,8 +146,7 @@ def assetconfigs(_):
         tgtfile = f"{CORECHECK_CONFS_DIR}/{check}.yaml"
         shutil.copyfile(srcfile, tgtfile)
         files_list.append(f"{check}.yaml")
-    files["files"] = files_list
-
+    files = {"files": files_list}
     with open(f"{CORECHECK_CONFS_DIR}/directory_manifest.yaml", 'w') as outfile:
         yaml.dump(files, outfile, default_flow_style=False)
 

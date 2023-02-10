@@ -64,7 +64,7 @@ if __name__ == '__main__':
     try:
         secret_names = list_secret_names(input_json)
     except ValueError as e:
-        sys.exit('Cannot parse input: ' + str(e))
+        sys.exit(f'Cannot parse input: {str(e)}')
 
     output = {}
     for s in secret_names:

@@ -32,8 +32,10 @@ def build_aggregator(ctx, rebuild=False, arch="x64"):
             # if you want to be able to use the delve debugger.
             ldflags += " -linkmode internal"
 
-    cmd = "go build -mod={go_mod} {build_type} -tags \"{build_tags}\" -o {bin_name} "
-    cmd += "{ldflags} {gcflags} {REPO_PATH}/test/benchmarks/aggregator"
+    cmd = (
+        "go build -mod={go_mod} {build_type} -tags \"{build_tags}\" -o {bin_name} "
+        + "{ldflags} {gcflags} {REPO_PATH}/test/benchmarks/aggregator"
+    )
     args = {
         "go_mod": "mod",
         "build_type": "-a" if rebuild else "",
@@ -89,8 +91,7 @@ def dogstatsd(ctx):
     branch_name = os.environ.get("DD_REPO_BRANCH_NAME") or get_git_branch_name()
     options = f"-branch {branch_name}"
 
-    key = os.environ.get("DD_AGENT_API_KEY")
-    if key:
+    if key := os.environ.get("DD_AGENT_API_KEY"):
         options += f" -api-key {key}"
 
     ctx.run(f"{bin_path} -pps=5000 -dur 45 -ser 5 -brk -inc 1000 {options}")
@@ -111,8 +112,7 @@ def aggregator(ctx):
     branch_name = os.environ.get("DD_REPO_BRANCH_NAME") or get_git_branch_name()
     options = f"-branch {branch_name}"
 
-    key = os.environ.get("DD_AGENT_API_KEY")
-    if key:
+    if key := os.environ.get("DD_AGENT_API_KEY"):
         options += f" -api-key {key}"
 
     ctx.run(f"{bin_path} -points 2,10,100,500,1000 -series 10,100,1000 -log-level info -json {options}")

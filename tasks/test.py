@@ -57,10 +57,7 @@ class TestProfiler:
 
 
 def ensure_bytes(s):
-    if not isinstance(s, bytes):
-        return s.encode('utf-8')
-
-    return s
+    return s if isinstance(s, bytes) else s.encode('utf-8')
 
 
 @contextmanager
@@ -161,10 +158,8 @@ def test_flavor(
 
     args["go_build_tags"] = " ".join(build_tags + ["test"])
 
-    junit_file_flag = ""
     junit_file = f"junit-out-{flavor.name}.xml"
-    if junit_tar:
-        junit_file_flag = "--junitfile " + junit_file
+    junit_file_flag = f"--junitfile {junit_file}" if junit_tar else ""
     args["junit_file_flag"] = junit_file_flag
 
     for module in modules:
@@ -176,7 +171,11 @@ def test_flavor(
         with ctx.cd(module.full_path()):
             res = ctx.run(
                 cmd.format(
-                    packages=' '.join(f"{t}/..." if not t.endswith("/...") else t for t in module.targets), **args
+                    packages=' '.join(
+                        t if t.endswith("/...") else f"{t}/..."
+                        for t in module.targets
+                    ),
+                    **args,
                 ),
                 env=env,
                 out_stream=test_profiler,
@@ -256,11 +255,7 @@ def test(
         print("Using default modules and targets")
         modules = DEFAULT_MODULES.values()
 
-    if not flavors:
-        flavors = [AgentFlavor.base]
-    else:
-        flavors = [AgentFlavor[f] for f in flavors]
-
+    flavors = [AgentFlavor[f] for f in flavors] if flavors else [AgentFlavor.base]
     flavors_build_tags = {
         f: compute_build_tags_for_flavor(
             flavor=f, build="unit-tests", arch=arch, build_include=build_include, build_exclude=build_exclude
@@ -297,16 +292,10 @@ def test(
     if sys.platform == 'win32':
         env['CGO_LDFLAGS'] += ' -Wl,--allow-multiple-definition'
 
-    if profile:
-        test_profiler = TestProfiler()
-    else:
-        test_profiler = None  # Use stdout
-
+    test_profiler = TestProfiler() if profile else None
     race_opt = ""
     covermode_opt = ""
-    build_cpus_opt = ""
-    if cpus:
-        build_cpus_opt = f"-p {cpus}"
+    build_cpus_opt = f"-p {cpus}" if cpus else ""
     if race:
         # race doesn't appear to be supported on non-x64 platforms
         if arch == "x86":
@@ -320,19 +309,11 @@ def test(
             ldflags += " -linkmode=external"
 
     if coverage:
-        if race:
-            # atomic is quite expensive but it's the only way to run
-            # both the coverage and the race detector at the same time
-            # without getting false positives from the cover counter
-            covermode_opt = "-covermode=atomic"
-        else:
-            covermode_opt = "-covermode=count"
-
-    coverprofile = ""
-    if coverage:
+        covermode_opt = "-covermode=atomic" if race else "-covermode=count"
         coverprofile = f"-coverprofile={PROFILE_COV}"
-
-    nocache = '-count=1' if not cache else ''
+    else:
+        coverprofile = ""
+    nocache = '' if cache else '-count=1'
 
     if save_result_json and os.path.isfile(save_result_json):
         # Remove existing file since we append to it.
@@ -340,8 +321,10 @@ def test(
         print(f"Removing existing '{save_result_json}' file")
         os.remove(save_result_json)
 
-    cmd = 'gotestsum {junit_file_flag} {json_flag} --format pkgname {rerun_fails} --packages="{packages}" -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
-    cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache}'
+    cmd = (
+        'gotestsum {junit_file_flag} {json_flag} --format pkgname {rerun_fails} --packages="{packages}" -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
+        + '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache}'
+    )
     args = {
         "go_mod": go_mod,
         "gcflags": gcflags,
@@ -484,7 +467,6 @@ def lint_releasenote(ctx):
 
     if branch == DEFAULT_BRANCH:
         print(f"Running on {DEFAULT_BRANCH}, skipping release note check.")
-    # Check if a releasenote has been added/changed
     elif pr_url:
         import requests
 
@@ -493,7 +475,10 @@ def lint_releasenote(ctx):
         # first check 'changelog/no-changelog' label
         res = requests.get(f"https://api.github.com/repos/DataDog/datadog-agent/issues/{pr_id}")
         issue = res.json()
-        if any([l['name'] == 'changelog/no-changelog' for l in issue.get('labels', {})]):
+        if any(
+            l['name'] == 'changelog/no-changelog'
+            for l in issue.get('labels', {})
+        ):
             print("'changelog/no-changelog' label found on the PR: skipping linting")
             return
 
@@ -504,12 +489,12 @@ def lint_releasenote(ctx):
             res = requests.get(url)
             files = res.json()
             if any(
-                [
-                    f['filename'].startswith("releasenotes/notes/")
-                    or f['filename'].startswith("releasenotes-dca/notes/")
-                    or f['filename'].startswith("releasenotes-installscript/notes/")
-                    for f in files
-                ]
+                f['filename'].startswith("releasenotes/notes/")
+                or f['filename'].startswith("releasenotes-dca/notes/")
+                or f['filename'].startswith(
+                    "releasenotes-installscript/notes/"
+                )
+                for f in files
             ):
                 break
 
@@ -521,8 +506,6 @@ def lint_releasenote(ctx):
                     ", or apply the label 'changelog/no-changelog' to the PR."
                 )
                 raise Exit(code=1)
-    # No PR is associated with this build: given that we have the "run only on PRs" setting activated,
-    # this can only happen when we're building on a tag. We don't need to check for release notes.
     else:
         print("PR not found, skipping release note check.")
 
@@ -591,9 +574,8 @@ def e2e_tests(ctx, target="gitlab", agent_image="", dca_image="", argo_workflow=
             print("define DATADOG_CLUSTER_AGENT_IMAGE envvar or image flag")
             raise Exit(1)
         os.environ["DATADOG_CLUSTER_AGENT_IMAGE"] = dca_image
-    if not os.getenv("ARGO_WORKFLOW"):
-        if argo_workflow:
-            os.environ["ARGO_WORKFLOW"] = argo_workflow
+    if not os.getenv("ARGO_WORKFLOW") and argo_workflow:
+        os.environ["ARGO_WORKFLOW"] = argo_workflow
 
     ctx.run(f"./test/e2e/scripts/setup-instance/00-entrypoint-{target}.sh")
 

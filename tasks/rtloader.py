@@ -44,9 +44,9 @@ def clear_cmake_cache(rtloader_path, settings):
 
     settings_not_found = settings.copy()
     with open(cmake_cache) as cache:
-        for line in cache.readlines():
+        for line in cache:
             for key, value in settings.items():
-                if line.strip() == key + "=" + value:
+                if line.strip() == f"{key}={value}":
                     settings_not_found.pop(key)
 
     if settings_not_found:
@@ -60,7 +60,7 @@ def make(ctx, install_prefix=None, python_runtimes='3', cmake_options='', arch="
     if cmake_options.find("-G") == -1:
         cmake_options += " -G \"Unix Makefiles\""
 
-    cmake_args = cmake_options + f" -DBUILD_DEMO:BOOL=OFF -DCMAKE_INSTALL_PREFIX:PATH={install_prefix or dev_path}"
+    cmake_args = f"{cmake_options} -DBUILD_DEMO:BOOL=OFF -DCMAKE_INSTALL_PREFIX:PATH={install_prefix or dev_path}"
 
     python_runtimes = python_runtimes.split(',')
 
@@ -91,9 +91,7 @@ def make(ctx, install_prefix=None, python_runtimes='3', cmake_options='', arch="
     try:
         os.makedirs(rtloader_build_path)
     except OSError as e:
-        if e.errno == errno.EEXIST:
-            pass
-        else:
+        if e.errno != errno.EEXIST:
             raise
 
     ctx.run(f"cd {rtloader_build_path} && cmake {cmake_args} {get_rtloader_path()}")
@@ -134,8 +132,13 @@ def format(ctx, raise_if_changed=False):
     run_make_command(ctx, "clang-format")
 
     if raise_if_changed:
-        changed_files = [line for line in ctx.run("git ls-files -m rtloader").stdout.strip().split("\n") if line]
-        if len(changed_files) != 0:
+        if changed_files := [
+            line
+            for line in ctx.run("git ls-files -m rtloader")
+            .stdout.strip()
+            .split("\n")
+            if line
+        ]:
             print("Following files were not correctly formated:")
             for f in changed_files:
                 print(f"  - {f}")
@@ -179,7 +182,7 @@ def generate_doc(ctx):
     # Separate warnings from errors
     with open(f"{rtloader_path}/doxygen/errors.log") as errfile:
         currententry = ""
-        for line in errfile.readlines():
+        for line in errfile:
             if 'error:' in line or 'warning:' in line:  # We get to a new entry, flush current one
                 flushentry(currententry)
                 currententry = ""
@@ -194,5 +197,5 @@ def generate_doc(ctx):
         print(f"The full list is available in {rtloader_path}/doxygen/errors.log.")
 
     # Exit with non-zero code if an error has been found
-    if len(errors) > 0:
+    if errors:
         raise Exit(code=1)

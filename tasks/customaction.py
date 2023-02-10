@@ -56,10 +56,7 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False):
     verprops = f" /p:MAJ_VER={build_maj} /p:MIN_VER={build_min} /p:PATCH_VER={build_patch} "
     print(f"arch is {arch}")
     cmd = ""
-    configuration = "Release"
-    if debug:
-        configuration = "Debug"
-
+    configuration = "Debug" if debug else "Release"
     if not os.getenv("VCINSTALLDIR"):
         print("VC Not installed in environment; checking other locations")
 
@@ -67,9 +64,7 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False):
         if not vsroot:
             print("Must have visual studio installed")
             raise Exit(code=2)
-        batchfile = "vcvars64.bat"
-        if arch == "x86":
-            batchfile = "vcvars32.bat"
+        batchfile = "vcvars32.bat" if arch == "x86" else "vcvars64.bat"
         vs_env_bat = f'{vsroot}\\VC\\Auxiliary\\Build\\{batchfile}'
         cmd = f'call "{vs_env_bat}" && msbuild {CUSTOM_ACTION_ROOT_DIR}\\cal /p:Configuration={configuration} /p:Platform={arch}'
     else:
@@ -92,16 +87,13 @@ def build(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False):
     for artefact in artefacts:
         shutil.copy2(
             f"{CUSTOM_ACTION_ROOT_DIR}\\cal\\{arch}\\{configuration}\\{artefact['source']}",
-            BIN_PATH + f"\\{artefact['target']}",
+            f"{BIN_PATH}\\{artefact['target']}",
         )
 
 
 @task
 def clean(_, arch="x64", debug=False):
-    configuration = "Release"
-    if debug:
-        configuration = "Debug"
-
+    configuration = "Debug" if debug else "Release"
     shutil.rmtree(f"{CUSTOM_ACTION_ROOT_DIR}\\cal\\{arch}\\{configuration}", BIN_PATH)
 
 

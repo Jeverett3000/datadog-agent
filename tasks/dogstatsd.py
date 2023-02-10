@@ -76,9 +76,10 @@ def build(
     if static:
         bin_path = STATIC_BIN_PATH
 
-    # NOTE: consider stripping symbols to reduce binary size
-    cmd = "go build -mod={go_mod} {race_opt} {build_type} -tags \"{build_tags}\" -o {bin_name} "
-    cmd += "-gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/dogstatsd"
+    cmd = (
+        "go build -mod={go_mod} {race_opt} {build_type} -tags \"{build_tags}\" -o {bin_name} "
+        + "-gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/dogstatsd"
+    )
     args = {
         "go_mod": go_mod,
         "race_opt": "-race" if race else "",
@@ -207,15 +208,10 @@ def omnibus_build(
     # omnibus config overrides
     overrides = []
 
-    # base dir (can be overridden through env vars, command line takes precedence)
-    base_dir = base_dir or os.environ.get("DSD_OMNIBUS_BASE_DIR")
-    if base_dir:
+    if base_dir := base_dir or os.environ.get("DSD_OMNIBUS_BASE_DIR"):
         overrides.append(f"base_dir:{base_dir}")
 
-    overrides_cmd = ""
-    if overrides:
-        overrides_cmd = "--override=" + " ".join(overrides)
-
+    overrides_cmd = "--override=" + " ".join(overrides) if overrides else ""
     with ctx.cd("omnibus"):
         env = load_release_versions(ctx, release_version)
 
@@ -241,9 +237,9 @@ def omnibus_build(
         )
         env['MAJOR_VERSION'] = major_version
 
-        integrations_core_version = os.environ.get('INTEGRATIONS_CORE_VERSION')
-        # Only overrides the env var if the value is a non-empty string.
-        if integrations_core_version:
+        if integrations_core_version := os.environ.get(
+            'INTEGRATIONS_CORE_VERSION'
+        ):
             env['INTEGRATIONS_CORE_VERSION'] = integrations_core_version
 
         # If the host has a GOMODCACHE set, try to reuse it

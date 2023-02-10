@@ -121,9 +121,9 @@ def follow_workflow_run(run_id):
             continue
 
         status = run["status"]
-        conclusion = run["conclusion"]
-
         if status == "completed":
+            conclusion = run["conclusion"]
+
             if conclusion == "success":
                 print(color_message("Workflow run succeeded", "green"))
                 return

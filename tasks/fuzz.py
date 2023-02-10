@@ -26,13 +26,12 @@ def search_fuzz_tests(directory):
     for file in os.listdir(directory):
         path = os.path.join(directory, file)
         if os.path.isdir(path):
-            for tuple in search_fuzz_tests(path):
-                yield tuple
+            yield from search_fuzz_tests(path)
         else:
             if not file.endswith('_test.go'):
                 continue
             with open(path) as f:
-                for line in f.readlines():
+                for line in f:
                     if line.startswith('func Fuzz'):
                         fuzzfunc = line[5 : line.find('(')]  # 5 is len('func ')
                         yield (directory, fuzzfunc)

@@ -102,9 +102,7 @@ def lint_licenses(ctx):
     file = 'LICENSE-3rdparty.csv'
     with open(file, 'r', encoding='utf-8') as f:
         next(f)
-        for line in f:
-            licenses.append(line.rstrip())
-
+        licenses.extend(line.rstrip() for line in f)
     new_licenses = get_licenses_list(ctx)
 
     removed_licenses = [ele for ele in new_licenses if ele not in licenses]
@@ -186,10 +184,12 @@ def generate_protobuf(ctx):
         # protobuf defs
         print(f"generating protobuf code from: {proto_root}")
 
-        files = []
-        for path in Path(os.path.join(proto_root, "datadog")).rglob('*.proto'):
-            files.append(path.as_posix())
-
+        files = [
+            path.as_posix()
+            for path in Path(os.path.join(proto_root, "datadog")).rglob(
+                '*.proto'
+            )
+        ]
         ctx.run(f"protoc -I{proto_root} --go_out=plugins=grpc:{repo_root} {' '.join(files)}")
         # grpc-gateway logic
         ctx.run(f"protoc -I{proto_root} --grpc-gateway_out=logtostderr=true:{repo_root} {' '.join(files)}")
@@ -250,7 +250,9 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
                 os.remove(os.path.join(ctx.cwd, "main"))
 
         if errors_found:
-            message = "\nErrors found:\n" + "\n".join("  - " + error for error in errors_found)
+            message = "\nErrors found:\n" + "\n".join(
+                f"  - {error}" for error in errors_found
+            )
             message += "\n\nRun 'inv tidy-all' to fix 'out of sync' errors."
             raise Exit(message=message)
 
